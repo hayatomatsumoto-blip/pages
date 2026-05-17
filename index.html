@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Night Picnic - 待ち状況</title>
+  <title>Night Picnic</title>
   <style>
     * {
       margin: 0;
@@ -28,14 +28,21 @@
   <iframe id="app-frame" allow="fullscreen" loading="lazy"></iframe>
 
   <script>
-    // GASのデプロイURLのベース（末尾スラッシュなし）
+    // GASのデプロイURL（末尾スラッシュなし）
     var GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbxE-4fCdb4Wo1jOTVBm2t08MaA68aI2TiirRIUXl6EzgYpKNU7SfW8GxBCncP2CGdJu/exec';
 
-    // 現在のURLのパラメータをそのままGASに転送する
+    // 現在のURLパラメータをすべてGASに転送する
     var params = new URLSearchParams(window.location.search);
     params.set('embedded', 'true');
 
     document.getElementById('app-frame').src = GAS_BASE_URL + '?' + params.toString();
+
+    // iframeがtitle変更をリクエストしてきた場合に対応（オプション）
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'setTitle') {
+        document.title = event.data.title;
+      }
+    });
   </script>
 </body>
 </html>
