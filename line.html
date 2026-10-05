@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LINEで受け取る</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #6b6b6b;
+      color: #222;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    }
+    main {
+      max-width: 420px;
+      margin: 48px auto;
+      padding: 28px 22px;
+      background: #fff;
+      border-radius: 16px;
+      text-align: center;
+    }
+    #ticket {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    #msg {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 999px;
+      background: #F5E040;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p id="ticket"></p>
+    <p id="msg">開いています</p>
+    <button id="add-friend" type="button" hidden>友だち追加</button>
+  </main>
+  <script>
+    var GAS = 'https://script.google.com/macros/s/AKfycbw2iA8TavrF24Z6d_DGqbsyEhVh0BDFsbbQ8AEzqKcGWF1z6s7mvB3Qr37XDvUgfl7D/exec';
+    var RETRY = '登録できませんでした。番号の画面からもう一度送ってください。';
+
+    function query() {
+      var params = new URLSearchParams(location.search);
+      var state = params.get('liff.state');
+      if (state) {
+        var inner = new URLSearchParams(state.charAt(0) === '?' ? state.slice(1) : state);
+        inner.forEach(function(value, key) {
+          if (!params.get(key)) params.set(key, value);
+        });
+      }
+      return params;
+    }
+
+    function ticketLabel(info) {
+      if (!info.ticketNumber) return;
+      document.getElementById('ticket').textContent = '番号 ' + info.ticketNumber;
+    }
+
+    function show(text) {
+      document.getElementById('msg').textContent = text;
+    }
+
+    function jsonp(queryText, done) {
+      var callbackName = 'npCb' + String(Date.now());
+      var script = document.createElement('script');
+      window[callbackName] = function(data) {
+        try { delete window[callbackName]; } catch (err) { window[callbackName] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+        done(data || {});
+      };
+      script.src = GAS + '?' + queryText + '&callback=' + callbackName;
+      script.onerror = function() { done({ ok: false, text: RETRY }); };
+      document.body.appendChild(script);
+    }
+
+    function infoFromPage() {
+      var params = query();
+      return {
+        storeId: params.get('storeId') || '',
+        ticketNumber: params.get('ticketNumber') || ''
+      };
+    }
+
+    function bind(info) {
+      var token = liff.getAccessToken();
+      if (!token) {
+        show(RETRY);
+        return;
+      }
+      jsonp(
+        'page=linebind&storeId=' + encodeURIComponent(info.storeId)
+          + '&ticketNumber=' + encodeURIComponent(info.ticketNumber)
+          + '&accessToken=' + encodeURIComponent(token),
+        function(data) {
+          if (data.ok) {
+            show('受け取りました');
+            return;
+          }
+          show(data.text || RETRY);
+        }
+      );
+    }
+
+    function addFriendThenBind(info) {
+      var button = document.getElementById('add-friend');
+      function finish() {
+        button.hidden = true;
+        bind(info);
+      }
+      if (!liff.getFriendship) {
+        finish();
+        return;
+      }
+      liff.getFriendship().then(function(friend) {
+        if (!friend || friend.friendFlag !== false || !liff.requestFriendship) {
+          finish();
+          return;
+        }
+        show('友だち追加をすると、呼び出しが届きます。');
+        button.hidden = false;
+        button.onclick = function() {
+          liff.requestFriendship().then(finish).catch(finish);
+        };
+      }).catch(finish);
+    }
+
+    function start(liffId) {
+      var info = infoFromPage();
+      ticketLabel(info);
+      if (!liffId) {
+        show(RETRY);
+        return;
+      }
+      liff.init({ liffId: liffId, withLoginOnExternalBrowser: true }).then(function() {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+        if (!info.storeId || !info.ticketNumber) {
+          show('番号の画面から開いてください。');
+          return;
+        }
+        addFriendThenBind(info);
+      }).catch(function() {
+        show(RETRY);
+      });
+    }
+
+    jsonp('page=lineconfig', function(data) {
+      start(data && data.liffId);
+    });
+  </script>
+</body>
+</html>
