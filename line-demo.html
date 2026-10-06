@@ -81,8 +81,8 @@
     }
 
     function bind(info) {
-      var token = liff.getAccessToken();
-      if (!token) {
+      var idToken = liff.getIDToken();
+      if (!idToken) {
         show(RETRY);
         return;
       }
@@ -91,7 +91,7 @@
       jsonp(
         'page=linebind&storeId=' + encodeURIComponent(info.storeId)
           + '&ticketNumber=' + encodeURIComponent(info.ticketNumber)
-          + '&accessToken=' + encodeURIComponent(token),
+          + '&idToken=' + encodeURIComponent(idToken),
         function(data) {
           if (data.ok) {
             show('受け取りました');
