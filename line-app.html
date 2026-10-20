@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LINEの中で開く</title>
+  <title>呼び出しの受け取り</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     html, body {
@@ -31,17 +31,32 @@
       font-weight: 700;
       line-height: 1.5;
     }
+    #add-friend {
+      display: none;
+      margin: 22px auto 0;
+      padding: 14px 22px;
+      border: 0;
+      border-radius: 999px;
+      background: #06c755;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
   <main>
     <p id="ticket"></p>
     <p id="msg">開いています</p>
+    <button id="add-friend" type="button">友達になる</button>
   </main>
   <script>
     var LIFF_ID = '2011957766-n1580yZz';
     var GAS = 'https://script.google.com/macros/s/AKfycbw2iA8TavrF24Z6d_DGqbsyEhVh0BDFsbbQ8AEzqKcGWF1z6s7mvB3Qr37XDvUgfl7D/exec';
+    var ADD_URL = 'https://line.me/R/ti/p/@799kcvry';
     var RETRY = '登録できませんでした。番号の画面からもう一度送ってください。';
+    var ASK = 'NIGHT PICNIC を友達にしてください。友達にすると、呼び出しが届きます。';
+    var SKIPPED = '友達にならないと、呼び出しは届きません。';
 
     function show(text) {
       document.getElementById('msg').textContent = text;
@@ -94,12 +109,68 @@
           + '&idToken=' + encodeURIComponent(idToken),
         function(data) {
           if (data.ok) {
+            document.getElementById('add-friend').style.display = 'none';
             show('受け取りました');
             return;
           }
           show(data.text || RETRY);
         }
       );
+    }
+
+    function openAddPage() {
+      if (liff.openWindow) {
+        liff.openWindow({ url: ADD_URL, external: false });
+        return;
+      }
+      location.href = ADD_URL;
+    }
+
+    function askThenBind(info) {
+      var button = document.getElementById('add-friend');
+      function afterFriendScreen() {
+        liff.getFriendship().then(function(friend) {
+          if (friend && friend.friendFlag) {
+            button.style.display = 'none';
+            bind(info);
+            return;
+          }
+          show(SKIPPED);
+          button.style.display = '';
+          button.textContent = '友達になる';
+        }).catch(function() {
+          show(SKIPPED);
+          button.style.display = '';
+          button.textContent = '友達になる';
+        });
+      }
+      function openFriendScreen() {
+        show(ASK);
+        button.style.display = '';
+        if (!liff.requestFriendship) {
+          openAddPage();
+          return;
+        }
+        liff.requestFriendship().then(afterFriendScreen).catch(function() {
+          openAddPage();
+          show(SKIPPED);
+          button.style.display = '';
+          button.textContent = '友達にしたので受け取る';
+          button.onclick = afterFriendScreen;
+        });
+      }
+      button.onclick = openFriendScreen;
+      if (!liff.getFriendship) {
+        openFriendScreen();
+        return;
+      }
+      liff.getFriendship().then(function(friend) {
+        if (friend && friend.friendFlag) {
+          bind(info);
+          return;
+        }
+        openFriendScreen();
+      }).catch(openFriendScreen);
     }
 
     liff.init({ liffId: LIFF_ID }).then(function() {
@@ -116,7 +187,8 @@
         liff.login();
         return;
       }
-      bind(info);
+      document.getElementById('ticket').textContent = '番号 ' + info.ticketNumber;
+      askThenBind(info);
     }).catch(function() {
       show('LINEの中では開けませんでした。');
     });
